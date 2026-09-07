@@ -13,11 +13,37 @@ def run_single_experiment(
     event_callback: Optional[Callable] = None,
 ) -> ExperimentResult:
     """Run a single algorithm on a graph and return results."""
-    start_time = time.time()
+    density = (
+        round((2.0 * graph.num_edges()) / (graph.num_vertices * (graph.num_vertices - 1)), 4)
+        if graph.num_vertices > 1
+        else 0.0
+    )
     
-    # Adapt to solver inputs
     if algorithm == 'exact':
         result = solve_exact(graph, time_limit=time_limit, event_callback=event_callback)
+        return ExperimentResult(
+            experiment_id=str(uuid.uuid4()),
+            timestamp=time.time(),
+            graph_id=getattr(graph, 'id', 'unknown'),
+            graph_size=graph.num_vertices,
+            edge_count=graph.num_edges(),
+            density=density,
+            algorithm='exact',
+            simulation_strategy='none',
+            iterations=result.states_explored,
+            time_limit=int(time_limit),
+            exploration_coeff=0.0,
+            seed=seed,
+            runtime=result.runtime,
+            status=result.status,
+            score=result.best_score if result.best_score != float('inf') else 0.0,
+            num_colors=result.num_colors,
+            nodes_explored=result.states_explored,
+            nodes_pruned=result.branches_pruned,
+            simulations=0,
+            optimality_gap=0.0,
+            speedup=1.0,
+        )
     elif algorithm == 'mcts':
         result = solve_mcts(
             graph, 
@@ -28,42 +54,31 @@ def run_single_experiment(
             seed=seed,
             event_callback=event_callback
         )
+        return ExperimentResult(
+            experiment_id=str(uuid.uuid4()),
+            timestamp=time.time(),
+            graph_id=getattr(graph, 'id', 'unknown'),
+            graph_size=graph.num_vertices,
+            edge_count=graph.num_edges(),
+            density=density,
+            algorithm='mcts',
+            simulation_strategy=strategy,
+            iterations=result.iterations,
+            time_limit=int(time_limit),
+            exploration_coeff=float(exploration),
+            seed=seed,
+            runtime=result.runtime,
+            status=result.status,
+            score=result.best_score if result.best_score != float('inf') else 0.0,
+            num_colors=result.num_colors,
+            nodes_explored=result.nodes_explored,
+            nodes_pruned=getattr(result, 'nodes_pruned', 0),
+            simulations=getattr(result, 'simulations', 0),
+            optimality_gap=None,
+            speedup=None,
+        )
     else:
         raise ValueError(f"Unknown algorithm: {algorithm}")
-        
-    execution_time = time.time() - start_time
-    
-    metrics = {}
-    if algorithm == 'exact':
-        metrics['states_explored'] = result.states_explored
-        metrics['branches_pruned'] = result.branches_pruned
-    elif algorithm == 'mcts':
-        metrics['iterations'] = result.iterations
-        metrics['nodes_explored'] = result.nodes_explored
-        metrics['nodes_pruned'] = getattr(result, 'nodes_pruned', 0)
-        metrics['simulations'] = getattr(result, 'simulations', 0)
-    
-    exp_res = ExperimentResult(
-        experiment_id=str(uuid.uuid4()),
-        graph_id="unknown", # caller can fill this
-        algorithm=algorithm,
-        score=result.best_score,
-        execution_time=execution_time,
-        status=result.status,
-        parameters={
-            "strategy": strategy,
-            "time_limit": time_limit,
-            "iterations": iterations,
-            "exploration": exploration,
-            "seed": seed
-        }
-    )
-    # Assume we can attach metrics dynamically if we want, or just return
-    # If ExperimentResult doesn't have metrics, we can add it or just ignore.
-    if hasattr(exp_res, 'metrics'):
-        exp_res.metrics = metrics
-        
-    return exp_res
 
 def run_comparison(
     graph, algorithms: list[dict],

@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Activity, Eye, FlaskConical, BarChart3, Database, Info, ActivitySquare } from 'lucide-react';
 import { motion } from 'framer-motion';
+import ErrorBoundary from './ErrorBoundary';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -88,7 +89,9 @@ const Layout: React.FC = () => {
 
         {/* Page Content Container */}
         <main className={`flex-1 min-w-0 overflow-hidden ${isVisPage ? 'p-4' : 'p-6 md:p-8 overflow-y-auto'}`}>
-          <Outlet />
+          <ErrorBoundary fallbackTitle="Page Rendering Error">
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

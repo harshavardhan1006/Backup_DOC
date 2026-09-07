@@ -85,10 +85,16 @@ def solve_exact(
                 EventType.SEARCH_PROGRESS,
                 states_explored=result.states_explored,
                 branches_pruned=result.branches_pruned,
+                nodes_explored=result.states_explored,
+                nodes_pruned=result.branches_pruned,
                 best_score=result.best_score if result.best_score != float('inf') else None,
+                score=current_score,
                 current_score=current_score,
+                iteration=result.states_explored,
                 depth=vertex_idx,
-                total_depth=num_vertices
+                total_depth=num_vertices,
+                elapsed=curr_time - start_time,
+                message=f"Branch & Bound: {result.states_explored} states explored (pruned {result.branches_pruned})"
             )
             last_event_time = curr_time
 
@@ -115,8 +121,14 @@ def solve_exact(
                     event_callback,
                     EventType.BEST_SOLUTION_UPDATED,
                     score=result.best_score,
+                    best_score=result.best_score,
+                    iteration=result.states_explored,
                     num_colors=result.num_colors,
-                    coloring=result.best_coloring.copy()
+                    coloring=result.best_coloring.copy(),
+                    nodes_explored=result.states_explored,
+                    nodes_pruned=result.branches_pruned,
+                    elapsed=time.time() - start_time,
+                    message=f"Exact solver found new best score: {result.best_score} with {result.num_colors} colors"
                 )
             return
             
@@ -206,11 +218,19 @@ def solve_exact(
     _send_event(
         event_callback,
         final_event_type,
+        score=result.best_score if result.best_score != float('inf') else None,
         best_score=result.best_score if result.best_score != float('inf') else None,
+        num_colors=result.num_colors,
+        coloring=result.best_coloring if result.best_coloring else {},
         runtime=result.runtime,
+        elapsed=result.runtime,
+        iteration=result.states_explored,
         states_explored=result.states_explored,
         branches_pruned=result.branches_pruned,
-        is_optimal=result.is_optimal
+        nodes_explored=result.states_explored,
+        nodes_pruned=result.branches_pruned,
+        is_optimal=result.is_optimal,
+        message=f"Exact search completed: score {result.best_score} with {result.num_colors} colors ({result.status})" if result.best_score != float('inf') else f"Exact search finished ({result.status})"
     )
     
     return result

@@ -104,11 +104,13 @@ export type EventType =
   | 'SEARCH_PROGRESS'
   | 'SEARCH_COMPLETED'
   | 'SEARCH_TIMEOUT'
+  | 'COMPARISON_COMPLETED'
   | 'ERROR';
 
 export interface AlgorithmEvent {
   type: EventType;
   timestamp: number;
+  algorithm?: string;
   iteration?: number;
   node_id?: string;
   vertex?: number;

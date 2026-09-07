@@ -20,6 +20,8 @@ export function useWebSocket() {
   });
   const [isRunning, setIsRunning] = useState(false);
   const [coloring, setColoring] = useState<Record<string, number>>({});
+  const [comparisonResult, setComparisonResult] = useState<any | null>(null);
+  const [activeAlgorithm, setActiveAlgorithm] = useState<string>('MCTS (dsatur)');
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -33,9 +35,11 @@ export function useWebSocket() {
     }
   }, []);
 
-  const resetMetrics = useCallback(() => {
+  const resetMetrics = useCallback((algo?: string) => {
     startTimeRef.current = Date.now();
     setIsRunning(true);
+    setComparisonResult(null);
+    if (algo) setActiveAlgorithm(algo);
     setMetrics({
       iteration: 0,
       bestScore: Infinity,
@@ -125,7 +129,7 @@ export function useWebSocket() {
             if (event.score !== undefined && event.score !== null) {
               updated.bestScore = event.score;
               updated.currentScore = event.score;
-              const iter = event.iteration ?? prev.iteration;
+              const iter = typeof event.iteration === 'number' ? event.iteration : prev.scoreHistory.length;
               // Add to score history for convergence chart
               updated.scoreHistory = [
                 ...prev.scoreHistory,
@@ -153,8 +157,17 @@ export function useWebSocket() {
             if (event.nodes_explored !== undefined) updated.nodesExplored = event.nodes_explored;
             if (event.states_explored !== undefined) updated.nodesExplored = event.states_explored;
             if (event.num_colors !== undefined) updated.numColors = event.num_colors;
-            if (event.coloring) setColoring(event.coloring);
+            if (event.coloring && Object.keys(event.coloring).length > 0) setColoring(event.coloring);
             setIsRunning(false);
+            if (timerRef.current) clearInterval(timerRef.current);
+            break;
+
+          case 'COMPARISON_COMPLETED':
+            updated.status = 'COMPLETED';
+            setIsRunning(false);
+            if (event.data) {
+              setComparisonResult(event.data);
+            }
             if (timerRef.current) clearInterval(timerRef.current);
             break;
 
@@ -170,6 +183,10 @@ export function useWebSocket() {
             setIsRunning(false);
             if (timerRef.current) clearInterval(timerRef.current);
             break;
+        }
+
+        if (event.algorithm) {
+          setActiveAlgorithm(event.algorithm.toUpperCase());
         }
 
         return updated;
@@ -194,6 +211,9 @@ export function useWebSocket() {
     metrics,
     isRunning,
     coloring,
+    setColoring,
+    activeAlgorithm,
+    comparisonResult,
     resetMetrics,
     ws: solverWS,
   };

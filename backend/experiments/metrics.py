@@ -30,7 +30,7 @@ def aggregate_results(results: list[ExperimentResult]) -> dict:
         stats = summary['algorithms'][r.algorithm]
         stats['count'] += 1
         stats['avg_score'] += r.score
-        stats['avg_time'] += r.execution_time
+        stats['avg_time'] += r.runtime
         
     for algo, stats in summary['algorithms'].items():
         if stats['count'] > 0:
@@ -45,11 +45,17 @@ def export_results_csv(results: list[ExperimentResult], filepath: str):
         
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['experiment_id', 'graph_id', 'algorithm', 'score', 'execution_time', 'status'])
+        writer.writerow([
+            'experiment_id', 'graph_id', 'graph_size', 'density', 'algorithm', 
+            'simulation_strategy', 'score', 'num_colors', 'runtime', 'nodes_explored', 'status'
+        ])
         for r in results:
-            writer.writerow([r.experiment_id, r.graph_id, r.algorithm, r.score, r.execution_time, r.status])
+            writer.writerow([
+                r.experiment_id, r.graph_id, r.graph_size, r.density, r.algorithm,
+                r.simulation_strategy, r.score, r.num_colors, r.runtime, r.nodes_explored, r.status
+            ])
 
 def export_results_json(results: list[ExperimentResult], filepath: str):
-    data = [r.dict() for r in results]
+    data = [r.model_dump() if hasattr(r, 'model_dump') else r.dict() for r in results]
     with open(filepath, 'w') as f:
         json.dump(data, f, indent=2)

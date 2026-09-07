@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Settings, Upload, Play, Zap, Network, Loader2, Check, AlertCircle, RefreshCw, GitFork } from 'lucide-react';
+import { Settings, Upload, Play, Zap, Network, Loader2, Check, AlertCircle, RefreshCw, GitFork, Award } from 'lucide-react';
 import GraphVisualization from '../visualizations/GraphVisualization';
 import MCTSTreeVisualization from '../visualizations/MCTSTreeVisualization';
 import ScoreChart from '../visualizations/ScoreChart';
 import MetricsPanel from '../visualizations/MetricsPanel';
 import EventLog from '../visualizations/EventLog';
+import ComparisonModal from '../visualizations/ComparisonModal';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useGraph } from '../hooks/useGraph';
 import type { GraphConfig } from '../types';
@@ -20,6 +22,7 @@ const PRESET_OPTIONS = [
 const VisualizationPage: React.FC = () => {
   // Navigation tabs for left panel
   const [activeTab, setActiveTab] = useState<'generate' | 'import' | 'settings'>('generate');
+  const [showComparisonModal, setShowComparisonModal] = useState(false);
 
   // Graph generator configuration
   const [numVertices, setNumVertices] = useState(15);
@@ -61,6 +64,13 @@ const VisualizationPage: React.FC = () => {
     }
   }, [graph.graphs, graph.currentGraph]);
 
+  // Auto-open comparison modal when comparison completes
+  useEffect(() => {
+    if (ws.comparisonResult) {
+      setShowComparisonModal(true);
+    }
+  }, [ws.comparisonResult]);
+
   // Generate new random graph
   const handleGenerate = async () => {
     const config: GraphConfig = {
@@ -79,7 +89,7 @@ const VisualizationPage: React.FC = () => {
       alert('Please select or generate a graph first.');
       return;
     }
-    ws.resetMetrics();
+    ws.resetMetrics(`MCTS (${strategy})`);
     await ws.ws.runMCTS(graph.currentGraph.id, {
       iterations,
       time_limit: timeLimit,
@@ -95,7 +105,7 @@ const VisualizationPage: React.FC = () => {
       alert('Please select or generate a graph first.');
       return;
     }
-    ws.resetMetrics();
+    ws.resetMetrics('EXACT (B&B)');
     await ws.ws.runExact(graph.currentGraph.id, {
       time_limit: timeLimit,
     });
@@ -107,7 +117,7 @@ const VisualizationPage: React.FC = () => {
       alert('Please select or generate a graph first.');
       return;
     }
-    ws.resetMetrics();
+    ws.resetMetrics('COMPARE (EXACT vs MCTS)');
     await ws.ws.runComparison(graph.currentGraph.id, [
       { algorithm: 'exact', time_limit: timeLimit },
       { algorithm: 'mcts', strategy, iterations, time_limit: timeLimit, exploration: explorationCoeff, seed }
@@ -479,6 +489,15 @@ const VisualizationPage: React.FC = () => {
                 {graph.currentGraph.num_vertices}V / {graph.currentGraph.num_edges}E
               </span>
             )}
+            {ws.comparisonResult && (
+              <button
+                onClick={() => setShowComparisonModal(true)}
+                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[11px] font-semibold hover:bg-purple-500/30 transition-all animate-pulse"
+              >
+                <GitFork size={12} />
+                <span>View Comparison</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
@@ -507,16 +526,18 @@ const VisualizationPage: React.FC = () => {
 
         {/* Main Visualization Canvas */}
         <div className="flex-1 min-h-[320px] rounded-2xl overflow-hidden relative">
-          {viewMode === 'graph' ? (
-            <GraphVisualization
-              graphData={graph.graphData}
-              coloring={ws.coloring}
-            />
-          ) : (
-            <MCTSTreeVisualization
-              nodes={[]}
-            />
-          )}
+          <ErrorBoundary fallbackTitle="Canvas Rendering Error">
+            {viewMode === 'graph' ? (
+              <GraphVisualization
+                graphData={graph.graphData}
+                coloring={ws.coloring}
+              />
+            ) : (
+              <MCTSTreeVisualization
+                nodes={[]}
+              />
+            )}
+          </ErrorBoundary>
         </div>
 
         {/* Bottom Convergence Panel */}
@@ -536,7 +557,7 @@ const VisualizationPage: React.FC = () => {
         <div className="flex-shrink-0">
           <MetricsPanel
             metrics={ws.metrics}
-            algorithm={strategy ? `MCTS (${strategy})` : 'SOLVER'}
+            algorithm={ws.activeAlgorithm || (strategy ? `MCTS (${strategy})` : 'SOLVER')}
           />
         </div>
 
@@ -548,6 +569,15 @@ const VisualizationPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Comparison Modal */}
+      {showComparisonModal && ws.comparisonResult && (
+        <ComparisonModal
+          data={ws.comparisonResult}
+          onClose={() => setShowComparisonModal(false)}
+          onApplyColoring={(coloring) => ws.setColoring(coloring)}
+        />
+      )}
     </div>
   );
 };
