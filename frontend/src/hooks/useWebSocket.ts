@@ -87,19 +87,20 @@ export function useWebSocket() {
             break;
 
           case 'SEARCH_PROGRESS':
-            if (event.iteration !== undefined && event.iteration !== null) updated.iteration = event.iteration;
-            if (event.best_score !== undefined && event.best_score !== null) updated.bestScore = event.best_score;
-            if (event.score !== undefined && event.score !== null) updated.currentScore = event.score;
-            if (event.nodes_explored !== undefined) updated.nodesExplored = event.nodes_explored;
-            if (event.nodes_pruned !== undefined) updated.nodesPruned = event.nodes_pruned;
-            if (event.states_explored !== undefined) updated.nodesExplored = event.states_explored;
-            if (event.branches_pruned !== undefined) updated.nodesPruned = event.branches_pruned;
-            if (event.simulations !== undefined) updated.simulations = event.simulations;
-            if (event.elapsed !== undefined && event.elapsed !== null) updated.elapsedTime = event.elapsed;
+            if (typeof event.iteration === 'number' && !isNaN(event.iteration)) updated.iteration = event.iteration;
+            if (typeof event.best_score === 'number' && !isNaN(event.best_score)) updated.bestScore = event.best_score;
+            if (typeof event.score === 'number' && !isNaN(event.score)) updated.currentScore = event.score;
+            if (typeof event.current_score === 'number' && !isNaN(event.current_score)) updated.currentScore = event.current_score;
+            if (typeof event.nodes_explored === 'number' && !isNaN(event.nodes_explored)) updated.nodesExplored = event.nodes_explored;
+            if (typeof event.states_explored === 'number' && !isNaN(event.states_explored)) updated.nodesExplored = event.states_explored;
+            if (typeof event.nodes_pruned === 'number' && !isNaN(event.nodes_pruned)) updated.nodesPruned = event.nodes_pruned;
+            if (typeof event.branches_pruned === 'number' && !isNaN(event.branches_pruned)) updated.nodesPruned = event.branches_pruned;
+            if (typeof event.simulations === 'number' && !isNaN(event.simulations)) updated.simulations = event.simulations;
+            if (typeof event.elapsed === 'number' && !isNaN(event.elapsed)) updated.elapsedTime = event.elapsed;
             break;
 
           case 'ITERATION_STARTED':
-            if (event.iteration !== undefined) updated.iteration = event.iteration;
+            if (typeof event.iteration === 'number' && !isNaN(event.iteration)) updated.iteration = event.iteration;
             break;
 
           case 'NODE_SELECTED':
@@ -109,7 +110,7 @@ export function useWebSocket() {
 
           case 'SIMULATION_COMPLETED':
             updated.simulations++;
-            if (event.score !== undefined) updated.currentScore = event.score;
+            if (typeof event.score === 'number' && !isNaN(event.score)) updated.currentScore = event.score;
             break;
 
           case 'NODE_PRUNED':
@@ -121,12 +122,12 @@ export function useWebSocket() {
             if (event.vertex !== undefined && event.color !== undefined) {
               setColoring(c => ({ ...c, [String(event.vertex)]: event.color! }));
             }
-            if (event.current_score !== undefined) updated.currentScore = event.current_score;
+            if (typeof event.current_score === 'number' && !isNaN(event.current_score)) updated.currentScore = event.current_score;
             break;
 
           case 'NEW_BEST_SOLUTION':
           case 'BEST_SOLUTION_UPDATED':
-            if (event.score !== undefined && event.score !== null) {
+            if (typeof event.score === 'number' && !isNaN(event.score)) {
               updated.bestScore = event.score;
               updated.currentScore = event.score;
               const iter = typeof event.iteration === 'number' ? event.iteration : prev.scoreHistory.length;
@@ -136,27 +137,28 @@ export function useWebSocket() {
                 { iteration: iter, score: event.score }
               ];
             }
-            if (event.best_score !== undefined && event.best_score !== null) {
+            if (typeof event.best_score === 'number' && !isNaN(event.best_score)) {
               updated.bestScore = event.best_score;
             }
-            if (event.num_colors !== undefined && event.num_colors !== null) {
+            if (typeof event.num_colors === 'number' && !isNaN(event.num_colors)) {
               updated.numColors = event.num_colors;
             }
             if (event.coloring) {
               setColoring(event.coloring);
             }
-            if (event.nodes_explored !== undefined) updated.nodesExplored = event.nodes_explored;
-            if (event.simulations !== undefined) updated.simulations = event.simulations;
+            if (typeof event.nodes_explored === 'number' && !isNaN(event.nodes_explored)) updated.nodesExplored = event.nodes_explored;
+            if (typeof event.states_explored === 'number' && !isNaN(event.states_explored)) updated.nodesExplored = event.states_explored;
+            if (typeof event.simulations === 'number' && !isNaN(event.simulations)) updated.simulations = event.simulations;
             break;
 
           case 'SEARCH_COMPLETED':
             updated.status = event.is_optimal ? 'OPTIMAL' : 'COMPLETED';
-            if (event.best_score !== undefined && event.best_score !== null) updated.bestScore = event.best_score;
-            if (event.score !== undefined && event.score !== null && updated.bestScore === Infinity) updated.bestScore = event.score;
-            if (event.runtime !== undefined && event.runtime !== null) updated.elapsedTime = event.runtime;
-            if (event.nodes_explored !== undefined) updated.nodesExplored = event.nodes_explored;
-            if (event.states_explored !== undefined) updated.nodesExplored = event.states_explored;
-            if (event.num_colors !== undefined) updated.numColors = event.num_colors;
+            if (typeof event.best_score === 'number' && !isNaN(event.best_score)) updated.bestScore = event.best_score;
+            if (typeof event.score === 'number' && !isNaN(event.score) && updated.bestScore === Infinity) updated.bestScore = event.score;
+            if (typeof event.runtime === 'number' && !isNaN(event.runtime)) updated.elapsedTime = event.runtime;
+            if (typeof event.nodes_explored === 'number' && !isNaN(event.nodes_explored)) updated.nodesExplored = event.nodes_explored;
+            if (typeof event.states_explored === 'number' && !isNaN(event.states_explored)) updated.nodesExplored = event.states_explored;
+            if (typeof event.num_colors === 'number' && !isNaN(event.num_colors)) updated.numColors = event.num_colors;
             if (event.coloring && Object.keys(event.coloring).length > 0) setColoring(event.coloring);
             setIsRunning(false);
             if (timerRef.current) clearInterval(timerRef.current);

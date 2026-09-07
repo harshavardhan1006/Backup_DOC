@@ -37,6 +37,11 @@ interface ComparisonModalProps {
   onApplyColoring?: (coloring: Record<string, number>) => void;
 }
 
+const formatNum = (val?: number | null, fallback: string = '—') => {
+  if (val === null || val === undefined || isNaN(val)) return fallback;
+  return val.toLocaleString();
+};
+
 export default function ComparisonModal({ data, onClose, onApplyColoring }: ComparisonModalProps) {
   if (!data || !data.results) return null;
 
@@ -133,7 +138,7 @@ export default function ComparisonModal({ data, onClose, onApplyColoring }: Comp
                   </div>
                   <div className="flex justify-between pb-1">
                     <span className="text-gray-400">States Explored:</span>
-                    <span className="font-mono text-gray-300">{exact?.nodes_explored?.toLocaleString() ?? '—'}</span>
+                    <span className="font-mono text-gray-300">{formatNum(exact?.nodes_explored)}</span>
                   </div>
                 </div>
               </div>
@@ -179,7 +184,7 @@ export default function ComparisonModal({ data, onClose, onApplyColoring }: Comp
                   <div className="flex justify-between pb-1">
                     <span className="text-gray-400">Iterations / Sims:</span>
                     <span className="font-mono text-gray-300">
-                      {mcts?.nodes_explored?.toLocaleString() ?? '—'} / {mcts?.simulations?.toLocaleString() ?? '—'}
+                      {formatNum(mcts?.nodes_explored)} / {formatNum(mcts?.simulations)}
                     </span>
                   </div>
                 </div>
