@@ -1,0 +1,53 @@
+[
+  {
+    "label": "10K",
+    "vertices": 10000,
+    "edges": 20000,
+    "status": "COMPLETED",
+    "iterations": 500,
+    "runtime": 55.367,
+    "iters_per_sec": 9.031,
+    "nodes_explored": 500,
+    "nodes_created": 501,
+    "nodes_pruned": 2,
+    "simulations": 500,
+    "best_score": 425.0,
+    "num_colors": 6,
+    "peak_memory_mb": 1.95,
+    "valid": true
+  },
+  {
+    "label": "25K",
+    "vertices": 25000,
+    "edges": 50000,
+    "status": "COMPLETED",
+    "iterations": 500,
+    "runtime": 155.794,
+    "iters_per_sec": 3.209,
+    "nodes_explored": 500,
+    "nodes_created": 501,
+    "nodes_pruned": 2,
+    "simulations": 500,
+    "best_score": 460.0,
+    "num_colors": 6,
+    "peak_memory_mb": 4.77,
+    "valid": true
+  },
+  {
+    "label": "50K",
+    "vertices": 50000,
+    "edges": 100000,
+    "status": "TIMEOUT",
+    "iterations": 463,
+    "runtime": 300.32,
+    "iters_per_sec": 1.542,
+    "nodes_explored": 463,
+    "nodes_created": 464,
+    "nodes_pruned": 2,
+    "simulations": 463,
+    "best_score": 479.0,
+    "num_colors": 6,
+    "peak_memory_mb": 9.16,
+    "valid": true
+  }
+]

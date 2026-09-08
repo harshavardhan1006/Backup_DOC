@@ -11,7 +11,7 @@ from algorithms.mcts.selection import select
 from algorithms.mcts.expansion import expand
 from algorithms.mcts.simulation import simulate
 from algorithms.mcts.backpropagation import backpropagate
-from algorithms.mcts.pruning import prune_node
+from algorithms.mcts.pruning import prune_on_improvement
 
 class MCTSResult:
     def __init__(self):
@@ -91,9 +91,10 @@ def solve_mcts(
             
         send_throttled_event(EventType.ITERATION_STARTED, iteration=i)
         
-        # 1. Selection
-        leaf = select(root, exploration)
+        # 1. Selection (with incremental pruning)
+        leaf, sel_pruned = select(root, exploration, result.best_score)
         result.nodes_explored += 1
+        result.nodes_pruned += sel_pruned
         send_throttled_event(EventType.NODE_SELECTED, node_id=leaf.id)
         
         # 2. Expansion
@@ -128,6 +129,12 @@ def solve_mcts(
             
             result.num_colors = sim_coloring.num_colors_used()
             result.score_history.append((i, sim_score))
+
+            # 6. Prune on improvement (replaces per-iteration global O(T*V) DFS)
+            improvement_pruned = prune_on_improvement(root, result.best_score)
+            result.nodes_pruned += improvement_pruned
+            if improvement_pruned:
+                send_throttled_event(EventType.NODE_PRUNED, message=f"Pruned {improvement_pruned} subtrees", pruned_count=improvement_pruned)
             
             if event_callback:
                 event_callback(AlgorithmEvent(
@@ -144,12 +151,6 @@ def solve_mcts(
                     simulations=result.simulations,
                     elapsed=time.time() - start_time
                 ))
-                    
-        # 6. Optional Pruning
-        pruned_ids = prune_node(root, result.best_score)
-        result.nodes_pruned = len(pruned_ids)
-        if pruned_ids:
-            send_throttled_event(EventType.NODE_PRUNED, message=f"Pruned {len(pruned_ids)} subtrees", pruned_count=len(pruned_ids))
             
         # 7. Search Progress
         current_time = time.time()

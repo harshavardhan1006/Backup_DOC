@@ -1,46 +1,66 @@
+from typing import Optional, List, Dict
 from app.models.graph import Graph
 from app.models.solution import Coloring
-from algorithms.wvcp import wvcp_score, get_legal_colors, is_valid_coloring
+from algorithms.mcts.delta_state import DeltaState
 
-class WVCPState:
-    def __init__(self, graph: Graph, coloring: Coloring = None, vertex_order: list[int] = None):
-        self.graph = graph
-        self.coloring = coloring or Coloring(graph.num_vertices)
-        # vertex_order: order in which we color vertices (e.g., by weight descending)
-        self.vertex_order = vertex_order or sorted(range(graph.num_vertices), key=lambda v: graph.weights[v], reverse=True)
-        self.current_index = 0  # index into vertex_order of next vertex to color
-        # Track which vertices are already colored
-        for i, v in enumerate(self.vertex_order):
-            if self.coloring.get_color(v) >= 0:
-                self.current_index = i + 1
-            else:
-                break
+
+class WVCPState(DeltaState):
+    """
+    WVCPState representation for MCTS.
     
-    def current_vertex(self) -> int:
-        if self.is_terminal():
-            return -1
-        return self.vertex_order[self.current_index]
+    Backed by DeltaState for O(1) memory per tree node (structural sharing),
+    completely eliminating O(V) full-array cloning on node expansion.
+    Preserves all existing methods and caller interfaces.
+    """
 
-    def is_terminal(self) -> bool:
-        return self.current_index >= self.graph.num_vertices
-
-    def get_legal_actions(self) -> list[int]:
-        if self.is_terminal():
-            return []
-        v = self.current_vertex()
-        return get_legal_colors(self.graph, self.coloring, v)
+    def __init__(
+        self,
+        graph: Graph,
+        coloring: Optional[Coloring] = None,
+        vertex_order: Optional[List[int]] = None,
+        partial_score: Optional[float] = None,
+        max_weight_per_color: Optional[Dict[int, int]] = None,
+        parent: Optional[DeltaState] = None,
+        vertex: int = -1,
+        color: int = -1,
+        depth: int = 0,
+    ):
+        super().__init__(
+            graph=graph,
+            parent=parent,
+            vertex=vertex,
+            color=color,
+            vertex_order=vertex_order,
+            partial_score=partial_score,
+            max_weight_per_color=max_weight_per_color,
+            depth=depth,
+            initial_coloring=coloring,
+        )
 
     def apply_action(self, color: int) -> 'WVCPState':
+        """
+        Applies a color assignment in O(1) time and memory.
+        Returns a new child WVCPState sharing the parent chain.
+        """
         v = self.current_vertex()
-        new_coloring = self.coloring.copy()
-        new_coloring.assign(v, color)
-        return WVCPState(self.graph, new_coloring, self.vertex_order)
+        w = self.graph.weights[v]
 
-    def get_score(self) -> float:
-        return wvcp_score(self.graph, self.coloring)
+        # Incremental update of max weights per color class (O(k), k << V)
+        new_mwpc = dict(self.max_weight_per_color)
+        old_max = new_mwpc.get(color, 0)
+        new_max = max(old_max, w)
+        new_mwpc[color] = new_max
 
-    def get_partial_score(self) -> float:
-        return wvcp_score(self.graph, self.coloring)
+        # Incremental WVCP objective update (O(1))
+        new_partial_score = self.partial_score + (new_max - old_max)
 
-    def copy(self) -> 'WVCPState':
-        return WVCPState(self.graph, self.coloring.copy(), self.vertex_order.copy())
+        return WVCPState(
+            graph=self.graph,
+            parent=self,
+            vertex=v,
+            color=color,
+            vertex_order=self.vertex_order,
+            partial_score=new_partial_score,
+            max_weight_per_color=new_mwpc,
+            depth=self.depth + 1,
+        )
