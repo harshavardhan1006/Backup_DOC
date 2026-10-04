@@ -2,6 +2,7 @@ from typing import Tuple, Optional
 from algorithms.mcts.state import WVCPState
 from app.models.solution import Coloring
 
+
 def dsatur_simulation(state: WVCPState, coloring: Optional[Coloring] = None) -> Tuple[float, Coloring]:
     """
     DSatur-inspired simulation.
@@ -10,46 +11,73 @@ def dsatur_simulation(state: WVCPState, coloring: Optional[Coloring] = None) -> 
     Optimized:
       - Phase 2: marker array detects neighbor colors in O(deg(v)) with zero set allocations.
       - Phase 3: accepts pre-materialized mutable coloring array to avoid redundant cloning.
+      - Hotpath: O(d log d) prefix scan instead of O(V), pre-bound dict_items view,
+        and pre-allocated saturation bonus array.
     
     Produces identical color assignments and scores as the original implementation.
     """
     graph = state.graph
     if coloring is not None:
         colors = coloring.colors
+        final_coloring = coloring
     else:
         colors = list(state.coloring.colors)
+        final_coloring = Coloring(graph.num_vertices, colors)
+
     weights = graph.weights
     adj = graph.adj
     vertex_order = state.vertex_order
+    cur_idx = state.current_index
 
     max_weights: dict[int, int] = {}
     class_sizes: dict[int, int] = {}
     next_color_id = 0
-    for v, c in enumerate(colors):
-        if c >= 0:
-            max_weights[c] = max(max_weights.get(c, 0), weights[v])
-            class_sizes[c] = class_sizes.get(c, 0) + 1
-            if c >= next_color_id:
-                next_color_id = c + 1
 
-    # Pre-allocate marker array for neighbor color detection.
-    # neighbor_color_marker[c] == vertex_stamp means color c is used by a neighbor.
+    if getattr(state, '_initial_coloring', None) is None:
+        if cur_idx == 1:
+            v0 = vertex_order[0]
+            c0 = colors[v0]
+            if c0 >= 0:
+                max_weights[c0] = weights[v0]
+                class_sizes[c0] = 1
+                next_color_id = c0 + 1
+        elif cur_idx > 1:
+            for v in sorted(vertex_order[:cur_idx]):
+                c = colors[v]
+                if c >= 0:
+                    w_v = weights[v]
+                    if w_v > max_weights.get(c, 0):
+                        max_weights[c] = w_v
+                    class_sizes[c] = class_sizes.get(c, 0) + 1
+                    if c >= next_color_id:
+                        next_color_id = c + 1
+    else:
+        for v, c in enumerate(colors):
+            if c >= 0:
+                max_weights[c] = max(max_weights.get(c, 0), weights[v])
+                class_sizes[c] = class_sizes.get(c, 0) + 1
+                if c >= next_color_id:
+                    next_color_id = c + 1
+
+    # Pre-allocate marker and saturation bonus arrays
     marker_capacity = max(next_color_id + 2, 32)
     neighbor_color_marker = [0] * marker_capacity
-    vertex_stamp = 0
+    cs_arr = [0] * marker_capacity
+    bon_arr = [0.0] * marker_capacity
+    for c, sz in class_sizes.items():
+        cs_arr[c] = sz
+        bon_arr[c] = -0.1 * sz
 
-    for idx in range(state.current_index, len(vertex_order)):
-        v = vertex_order[idx]
+    mw_items = max_weights.items()
+    vertex_stamp = 0
+    inf = float('inf')
+
+    remaining = vertex_order if cur_idx == 0 else vertex_order[cur_idx:]
+    for v in remaining:
         w = weights[v]
         vertex_stamp += 1
 
-        # Grow marker array if needed (rare: only when a new color exceeds capacity)
-        if next_color_id + 1 >= marker_capacity:
-            old_cap = marker_capacity
-            marker_capacity = (next_color_id + 2) * 2
-            neighbor_color_marker.extend([0] * (marker_capacity - old_cap))
-
-        # Mark neighbor colors — replaces set allocation {colors[n] for n in ...}
+        # Mark neighbor colors
         for n in adj[v]:
             nc = colors[n]
             if nc >= 0:
@@ -57,45 +85,38 @@ def dsatur_simulation(state: WVCPState, coloring: Optional[Coloring] = None) -> 
 
         # Evaluate existing colors in dict insertion order (preserves tie-breaking)
         best_c = -1
-        best_heuristic = float('inf')
+        best_heuristic = inf
 
-        for c in max_weights:
+        for c, current_max in mw_items:
             if neighbor_color_marker[c] == vertex_stamp:
-                continue  # color c conflicts with a neighbor
+                continue
 
-            current_max = max_weights[c]
-            new_max = current_max if current_max >= w else w
-            increase = new_max - current_max
-
-            # Existing classes always have class_size > 0
-            class_size = class_sizes[c]
-            saturation_bonus = -0.1 * class_size
-            combined = increase + saturation_bonus
-
+            combined = bon_arr[c] if current_max >= w else (w - current_max) + bon_arr[c]
             if combined < best_heuristic:
                 best_heuristic = combined
                 best_c = c
 
         # Evaluate new color (class_size == 0 -> saturation_bonus = 1.0)
-        combined_new = w + 1.0
-        if best_c == -1:
-            # No legal existing colors; must use new color
+        if best_c == -1 or (w + 1.0) < best_heuristic:
             best_c = next_color_id
-        elif combined_new < best_heuristic:
-            best_c = next_color_id
-
-        # Apply assignment
-        colors[v] = best_c
-        if best_c in max_weights:
+            colors[v] = best_c
+            max_weights[best_c] = w
+            cs_arr[best_c] = 1
+            bon_arr[best_c] = -0.1
+            next_color_id = best_c + 1
+            if next_color_id + 1 >= marker_capacity:
+                ext = [0] * marker_capacity
+                neighbor_color_marker.extend(ext)
+                cs_arr.extend(ext)
+                bon_arr.extend([0.0] * marker_capacity)
+                marker_capacity *= 2
+        else:
+            colors[v] = best_c
             if w > max_weights[best_c]:
                 max_weights[best_c] = w
-            class_sizes[best_c] += 1
-        else:
-            max_weights[best_c] = w
-            class_sizes[best_c] = 1
-            next_color_id = best_c + 1
+            sz = cs_arr[best_c] + 1
+            cs_arr[best_c] = sz
+            bon_arr[best_c] = -0.1 * sz
 
-    final_coloring = Coloring(graph.num_vertices)
-    final_coloring.colors = colors
     score = float(sum(max_weights.values()))
     return score, final_coloring

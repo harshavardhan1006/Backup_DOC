@@ -28,8 +28,8 @@ class ExperimentService:
         res = run_scalability_experiment(
             graph_sizes=getattr(config, 'graph_sizes', [5, 10, 15]),
             algorithms=getattr(config, 'algorithms', [{'algorithm': 'mcts', 'strategy': 'dsatur'}]),
-            time_limit=getattr(config, 'time_limit', 10.0),
-            iterations=getattr(config, 'iterations', 500),
+            time_limit=getattr(config, 'time_limit', None),
+            iterations=getattr(config, 'iterations', None),
             edge_probability=getattr(config, 'edge_probability', 0.3),
             min_weight=getattr(config, 'min_weight', 1),
             max_weight=getattr(config, 'max_weight', 100),

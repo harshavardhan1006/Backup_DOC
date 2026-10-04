@@ -55,18 +55,21 @@ class Graph:
             return {}
         degrees = [self.degree(v) for v in range(self.num_vertices)]
         
-        # Calculate connected components
+        # Calculate connected components in O(V + E)
+        from collections import deque
         visited = set()
         components = 0
         for i in range(self.num_vertices):
             if i not in visited:
                 components += 1
-                queue = [i]
+                visited.add(i)
+                queue = deque([i])
                 while queue:
-                    curr = queue.pop(0)
-                    if curr not in visited:
-                        visited.add(curr)
-                        queue.extend(list(self.adj[curr] - visited))
+                    curr = queue.popleft()
+                    for nxt in self.adj[curr]:
+                        if nxt not in visited:
+                            visited.add(nxt)
+                            queue.append(nxt)
 
         return {
             "num_vertices": self.num_vertices,

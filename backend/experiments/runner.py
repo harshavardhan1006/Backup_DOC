@@ -8,7 +8,7 @@ from algorithms.mcts.mcts import solve_mcts
 
 def run_single_experiment(
     graph, algorithm: str, strategy: str = 'random',
-    time_limit: float = 60, iterations: int = 1000,
+    time_limit: Optional[float] = None, iterations: Optional[int] = None,
     exploration: float = 1.414, seed: int = 42,
     event_callback: Optional[Callable] = None,
 ) -> ExperimentResult:
@@ -20,7 +20,8 @@ def run_single_experiment(
     )
     
     if algorithm == 'exact':
-        result = solve_exact(graph, time_limit=time_limit, event_callback=event_callback)
+        eff_time_limit = float(time_limit) if time_limit is not None else 30.0
+        result = solve_exact(graph, time_limit=eff_time_limit, event_callback=event_callback)
         return ExperimentResult(
             experiment_id=str(uuid.uuid4()),
             timestamp=time.time(),
@@ -31,7 +32,7 @@ def run_single_experiment(
             algorithm='exact',
             simulation_strategy='none',
             iterations=result.states_explored,
-            time_limit=int(time_limit),
+            time_limit=int(eff_time_limit),
             exploration_coeff=0.0,
             seed=seed,
             runtime=result.runtime,
@@ -45,10 +46,19 @@ def run_single_experiment(
             speedup=1.0,
         )
     elif algorithm == 'mcts':
+        if iterations is None or time_limit is None:
+            from algorithms.mcts.budget import calibrate_mcts_budget
+            budget = calibrate_mcts_budget(graph, strategy=strategy)
+            eff_iterations = int(iterations) if iterations is not None else int(budget['iterations'])
+            eff_time_limit = float(time_limit) if time_limit is not None else float(budget['time_limit'])
+        else:
+            eff_iterations = int(iterations)
+            eff_time_limit = float(time_limit)
+
         result = solve_mcts(
             graph, 
-            time_limit=time_limit,
-            iterations=iterations,
+            time_limit=eff_time_limit,
+            iterations=eff_iterations,
             exploration=exploration,
             strategy=strategy,
             seed=seed,
@@ -64,7 +74,7 @@ def run_single_experiment(
             algorithm='mcts',
             simulation_strategy=strategy,
             iterations=result.iterations,
-            time_limit=int(time_limit),
+            time_limit=int(eff_time_limit),
             exploration_coeff=float(exploration),
             seed=seed,
             runtime=result.runtime,
@@ -91,8 +101,8 @@ def run_comparison(
             graph,
             algorithm=algo_cfg.get('algorithm', 'mcts'),
             strategy=algo_cfg.get('strategy', 'random'),
-            time_limit=algo_cfg.get('time_limit', 60),
-            iterations=algo_cfg.get('iterations', 1000),
+            time_limit=algo_cfg.get('time_limit', None),
+            iterations=algo_cfg.get('iterations', None),
             exploration=algo_cfg.get('exploration', 1.414),
             seed=algo_cfg.get('seed', 42),
             event_callback=event_callback

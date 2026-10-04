@@ -187,9 +187,7 @@ class DeltaState:
             colors[curr.vertex] = curr.color
             curr = curr.parent
 
-        coloring = Coloring(n)
-        coloring.colors = colors
-        return coloring
+        return Coloring(n, colors)
 
     @property
     def coloring(self) -> Coloring:

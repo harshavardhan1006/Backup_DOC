@@ -45,11 +45,20 @@ class SolverService:
         self.active_runs[run_id] = True
         
         loop = asyncio.get_running_loop()
-        max_iters = int(getattr(config, 'iterations', getattr(config, 'max_iterations', 1000)))
-        time_limit = float(getattr(config, 'time_limit', 30.0))
         expl_weight = float(getattr(config, 'exploration', getattr(config, 'exploration_coeff', getattr(config, 'exploration_weight', 1.414))))
         strategy = str(getattr(config, 'strategy', getattr(config, 'simulation_strategy', 'dsatur'))).lower()
         seed = int(getattr(config, 'seed', getattr(config, 'random_seed', 42)))
+
+        raw_iters = getattr(config, 'iterations', getattr(config, 'max_iterations', None))
+        raw_time = getattr(config, 'time_limit', None)
+        if not raw_iters or not raw_time:
+            from algorithms.mcts.budget import calibrate_mcts_budget
+            budget = calibrate_mcts_budget(graph, strategy=strategy)
+            max_iters = int(raw_iters) if raw_iters else int(budget['iterations'])
+            time_limit = float(raw_time) if raw_time else float(budget['time_limit'])
+        else:
+            max_iters = int(raw_iters)
+            time_limit = float(raw_time)
         
         import functools
         fn = functools.partial(

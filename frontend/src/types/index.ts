@@ -55,6 +55,18 @@ export interface GraphConfig {
   seed?: number;
 }
 
+export interface AutoBudget {
+  graph_id: string;
+  num_vertices: number;
+  num_edges: number;
+  density?: number;
+  iterations: number;
+  time_limit: number;
+  estimated_runtime_s: number;
+  iters_per_sec: number;
+  target_seconds: number;
+}
+
 // Algorithm types
 export type Algorithm = 'exact' | 'mcts';
 export type SimulationStrategy = 'random' | 'greedy' | 'dsatur';

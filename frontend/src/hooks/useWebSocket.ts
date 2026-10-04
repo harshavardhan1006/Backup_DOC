@@ -153,11 +153,15 @@ export function useWebSocket() {
 
           case 'SEARCH_COMPLETED':
             updated.status = event.is_optimal ? 'OPTIMAL' : 'COMPLETED';
+            if (typeof event.iteration === 'number' && !isNaN(event.iteration)) updated.iteration = event.iteration;
             if (typeof event.best_score === 'number' && !isNaN(event.best_score)) updated.bestScore = event.best_score;
             if (typeof event.score === 'number' && !isNaN(event.score) && updated.bestScore === Infinity) updated.bestScore = event.score;
             if (typeof event.runtime === 'number' && !isNaN(event.runtime)) updated.elapsedTime = event.runtime;
             if (typeof event.nodes_explored === 'number' && !isNaN(event.nodes_explored)) updated.nodesExplored = event.nodes_explored;
             if (typeof event.states_explored === 'number' && !isNaN(event.states_explored)) updated.nodesExplored = event.states_explored;
+            if (typeof event.nodes_pruned === 'number' && !isNaN(event.nodes_pruned)) updated.nodesPruned = event.nodes_pruned;
+            if (typeof event.branches_pruned === 'number' && !isNaN(event.branches_pruned)) updated.nodesPruned = event.branches_pruned;
+            if (typeof event.simulations === 'number' && !isNaN(event.simulations)) updated.simulations = event.simulations;
             if (typeof event.num_colors === 'number' && !isNaN(event.num_colors)) updated.numColors = event.num_colors;
             if (event.coloring && Object.keys(event.coloring).length > 0) setColoring(event.coloring);
             setIsRunning(false);
@@ -175,6 +179,11 @@ export function useWebSocket() {
 
           case 'SEARCH_TIMEOUT':
             updated.status = 'TIMEOUT';
+            if (typeof event.iteration === 'number' && !isNaN(event.iteration)) updated.iteration = event.iteration;
+            if (typeof event.best_score === 'number' && !isNaN(event.best_score)) updated.bestScore = event.best_score;
+            if (typeof event.nodes_explored === 'number' && !isNaN(event.nodes_explored)) updated.nodesExplored = event.nodes_explored;
+            if (typeof event.nodes_pruned === 'number' && !isNaN(event.nodes_pruned)) updated.nodesPruned = event.nodes_pruned;
+            if (typeof event.simulations === 'number' && !isNaN(event.simulations)) updated.simulations = event.simulations;
             if (event.runtime !== undefined) updated.elapsedTime = event.runtime;
             setIsRunning(false);
             if (timerRef.current) clearInterval(timerRef.current);

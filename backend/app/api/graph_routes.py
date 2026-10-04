@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 import math
 import random
 from datasets.importer import import_graph
+from algorithms.mcts.budget import calibrate_mcts_budget
 
 router = APIRouter()
 
@@ -134,3 +135,25 @@ async def import_graph_endpoint(request: Request, payload: dict):
             raise HTTPException(status_code=400, detail=f"Invalid graph: {result.errors}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Import failed: {str(e)}")
+
+
+@router.get('/{graph_id}/budget')
+def get_mcts_budget(graph_id: str, request: Request, strategy: str = 'dsatur'):
+    """
+    Auto-calibrate MCTS computation budget for the given graph.
+    Runs a brief calibration (5 timed simulations) to estimate iteration throughput,
+    then returns appropriate iterations + time_limit values.
+    """
+    graph_service = request.app.state.graph_service
+    graph = graph_service.get_graph(graph_id)
+    if not graph:
+        raise HTTPException(status_code=404, detail="Graph not found")
+    try:
+        budget = calibrate_mcts_budget(graph, strategy=strategy)
+        budget['graph_id'] = graph_id
+        budget['num_vertices'] = graph.num_vertices
+        budget['num_edges'] = graph.num_edges()
+        return budget
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Budget calibration failed: {str(e)}")
+

@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from .graph import Graph
 
 class Coloring:
-    def __init__(self, num_vertices: int):
+    def __init__(self, num_vertices: int, colors: Optional[List[int]] = None):
         self.num_vertices = num_vertices
-        self.colors: List[int] = [-1] * num_vertices
+        self.colors: List[int] = colors if colors is not None else [-1] * num_vertices
     
     def assign(self, vertex: int, color: int):
         self.colors[vertex] = color
@@ -36,9 +36,7 @@ class Coloring:
         return len(set(c for c in self.colors if c != -1))
 
     def copy(self) -> 'Coloring':
-        new_coloring = Coloring(self.num_vertices)
-        new_coloring.colors = self.colors.copy()
-        return new_coloring
+        return Coloring(self.num_vertices, self.colors.copy())
 
     def to_dict(self) -> Dict[str, int]:
         return {str(i): c for i, c in enumerate(self.colors)}

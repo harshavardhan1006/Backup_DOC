@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Settings, Upload, Play, Zap, Network, Loader2, Check, AlertCircle, RefreshCw, GitFork, Award } from 'lucide-react';
+import { Settings, Upload, Play, Zap, Network, Loader2, Check, AlertCircle, RefreshCw, GitFork, Award, Cpu } from 'lucide-react';
 import GraphVisualization from '../visualizations/GraphVisualization';
 import MCTSTreeVisualization from '../visualizations/MCTSTreeVisualization';
 import ScoreChart from '../visualizations/ScoreChart';
@@ -9,7 +9,8 @@ import ComparisonModal from '../visualizations/ComparisonModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useGraph } from '../hooks/useGraph';
-import type { GraphConfig } from '../types';
+import { api } from '../services/api';
+import type { GraphConfig, AutoBudget } from '../types';
 
 const PRESET_OPTIONS = [
   { id: 'preset_tiny', name: 'Tiny (5V, 5E)' },
@@ -31,11 +32,14 @@ const VisualizationPage: React.FC = () => {
   const [maxWeight, setMaxWeight] = useState(100);
   const [seed, setSeed] = useState(42);
 
-  // Algorithm parameters
+  // Algorithm parameters (manual: strategy + exploration only)
   const [strategy, setStrategy] = useState<'random' | 'greedy' | 'dsatur'>('dsatur');
-  const [iterations, setIterations] = useState(1000);
-  const [timeLimit, setTimeLimit] = useState(30);
   const [explorationCoeff, setExplorationCoeff] = useState(1.414);
+
+  // Auto-budget state
+  const [autoBudget, setAutoBudget] = useState<AutoBudget | null>(null);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
 
   // Active view mode
   const [viewMode, setViewMode] = useState<'graph' | 'tree'>('graph');
@@ -47,6 +51,25 @@ const VisualizationPage: React.FC = () => {
   // Hooks
   const graph = useGraph();
   const ws = useWebSocket();
+
+  // Fetch auto-budget when current graph or strategy changes
+  const fetchBudget = useCallback(async (graphId: string, strat: string) => {
+    setBudgetLoading(true);
+    setBudgetError(null);
+    setAutoBudget(null);
+    try {
+      const data = await api.getBudget(graphId, strat);
+      if (data && data.iterations) {
+        setAutoBudget(data as AutoBudget);
+      } else {
+        setBudgetError('Budget calibration returned unexpected data.');
+      }
+    } catch (err: any) {
+      setBudgetError(`Calibration failed: ${err.message}`);
+    } finally {
+      setBudgetLoading(false);
+    }
+  }, []);
 
   // Initial mount: Connect WebSocket and load preset graph
   useEffect(() => {
@@ -63,6 +86,13 @@ const VisualizationPage: React.FC = () => {
       }
     }
   }, [graph.graphs, graph.currentGraph]);
+
+  // Fetch budget whenever graph or strategy changes
+  useEffect(() => {
+    if (graph.currentGraph) {
+      fetchBudget(graph.currentGraph.id, strategy);
+    }
+  }, [graph.currentGraph?.id, strategy, fetchBudget]);
 
   // Auto-open comparison modal when comparison completes
   useEffect(() => {
@@ -83,23 +113,27 @@ const VisualizationPage: React.FC = () => {
     await graph.generateGraph(config);
   };
 
-  // Run MCTS solver
+  // Run MCTS solver — uses auto-budget for iterations + time_limit
   const handleRunMCTS = async () => {
     if (!graph.currentGraph) {
       alert('Please select or generate a graph first.');
       return;
     }
+    if (!autoBudget) {
+      alert('Budget is still calibrating. Please wait a moment.');
+      return;
+    }
     ws.resetMetrics(`MCTS (${strategy})`);
     await ws.ws.runMCTS(graph.currentGraph.id, {
-      iterations,
-      time_limit: timeLimit,
+      iterations: autoBudget.iterations,
+      time_limit: autoBudget.time_limit,
       exploration: explorationCoeff,
       strategy,
       seed,
     });
   };
 
-  // Run Exact solver (Branch & Bound)
+  // Run Exact solver (Branch & Bound) — always uses a fixed generous time limit
   const handleRunExact = async () => {
     if (!graph.currentGraph) {
       alert('Please select or generate a graph first.');
@@ -107,7 +141,7 @@ const VisualizationPage: React.FC = () => {
     }
     ws.resetMetrics('EXACT (B&B)');
     await ws.ws.runExact(graph.currentGraph.id, {
-      time_limit: timeLimit,
+      time_limit: 60,
     });
   };
 
@@ -117,10 +151,14 @@ const VisualizationPage: React.FC = () => {
       alert('Please select or generate a graph first.');
       return;
     }
+    if (!autoBudget) {
+      alert('Budget is still calibrating. Please wait a moment.');
+      return;
+    }
     ws.resetMetrics('COMPARE (EXACT vs MCTS)');
     await ws.ws.runComparison(graph.currentGraph.id, [
-      { algorithm: 'exact', time_limit: timeLimit },
-      { algorithm: 'mcts', strategy, iterations, time_limit: timeLimit, exploration: explorationCoeff, seed }
+      { algorithm: 'exact', time_limit: 60 },
+      { algorithm: 'mcts', strategy, iterations: autoBudget.iterations, time_limit: autoBudget.time_limit, exploration: explorationCoeff, seed }
     ]);
   };
 
@@ -355,39 +393,6 @@ const VisualizationPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Iterations */}
-              <div>
-                <div className="flex justify-between items-center text-xs mb-1">
-                  <span className="text-gray-400">Iterations</span>
-                  <span className="font-mono text-purple-300 font-bold">{iterations}</span>
-                </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="5000"
-                  step="50"
-                  value={iterations}
-                  onChange={(e) => setIterations(parseInt(e.target.value))}
-                  className="w-full accent-purple-500"
-                />
-              </div>
-
-              {/* Time Limit */}
-              <div>
-                <div className="flex justify-between items-center text-xs mb-1">
-                  <span className="text-gray-400">Time Limit (s)</span>
-                  <span className="font-mono text-purple-300 font-bold">{timeLimit}s</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="120"
-                  value={timeLimit}
-                  onChange={(e) => setTimeLimit(parseInt(e.target.value))}
-                  className="w-full accent-purple-500"
-                />
-              </div>
-
               {/* Exploration Factor */}
               <div>
                 <div className="flex justify-between items-center text-xs mb-1">
@@ -403,6 +408,64 @@ const VisualizationPage: React.FC = () => {
                   onChange={(e) => setExplorationCoeff(parseFloat(e.target.value))}
                   className="w-full accent-purple-500"
                 />
+              </div>
+
+              {/* AUTO COMPUTATION section */}
+              <div className="pt-3 border-t border-white/10">
+                <div className="flex items-center gap-2 mb-2">
+                  <Cpu size={13} className="text-cyan-400" />
+                  <span className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">Auto Computation Budget</span>
+                </div>
+
+                {budgetLoading && (
+                  <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
+                    <Loader2 size={14} className="animate-spin text-cyan-400" />
+                    <span>Calibrating for this graph…</span>
+                  </div>
+                )}
+
+                {budgetError && !budgetLoading && (
+                  <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                    {budgetError}
+                  </div>
+                )}
+
+                {autoBudget && !budgetLoading && (
+                  <div className="rounded-xl bg-black/40 border border-cyan-500/15 p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Graph (V / E)</span>
+                      <span className="font-mono text-white">
+                        {autoBudget.num_vertices.toLocaleString()}V / {autoBudget.num_edges.toLocaleString()}E
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Graph Density</span>
+                      <span className="font-mono text-white">
+                        {(autoBudget.density ?? graph.graphStats?.density ?? graph.currentGraph?.density ?? 0).toFixed(4)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Throughput</span>
+                      <span className="font-mono text-cyan-300">{autoBudget.iters_per_sec.toFixed(1)} it/s</span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>Auto Budget</span>
+                      <span className="font-mono text-purple-300 font-bold">
+                        {autoBudget.iterations.toLocaleString()} iters (~{autoBudget.estimated_runtime_s.toFixed(2)}s)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => graph.currentGraph && fetchBudget(graph.currentGraph.id, strategy)}
+                      className="mt-1 w-full flex items-center justify-center gap-1.5 text-[11px] text-gray-400 hover:text-white py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 transition-all"
+                    >
+                      <RefreshCw size={11} /> Re-calibrate
+                    </button>
+                  </div>
+                )}
+
+                {!autoBudget && !budgetLoading && !budgetError && (
+                  <div className="text-xs text-gray-500 italic">Select a graph to auto-determine budget.</div>
+                )}
               </div>
             </div>
           )}
@@ -443,11 +506,11 @@ const VisualizationPage: React.FC = () => {
         <div className="p-4 bg-black/40 border-t border-white/10 flex flex-col gap-2 flex-shrink-0">
           <button
             onClick={handleRunMCTS}
-            disabled={ws.isRunning || !graph.currentGraph}
+            disabled={ws.isRunning || !graph.currentGraph || budgetLoading || !autoBudget}
             className="btn btn-primary w-full py-2.5 shadow-[0_0_15px_rgba(0,212,255,0.25)] flex items-center justify-center gap-2"
           >
-            {ws.isRunning ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-            <span>RUN MCTS</span>
+            {ws.isRunning ? <Loader2 size={16} className="animate-spin" /> : budgetLoading ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+            <span>{budgetLoading ? 'Calibrating…' : 'RUN MCTS'}</span>
           </button>
 
           <div className="grid grid-cols-2 gap-2">
@@ -463,7 +526,7 @@ const VisualizationPage: React.FC = () => {
 
             <button
               onClick={handleRunComparison}
-              disabled={ws.isRunning || !graph.currentGraph}
+              disabled={ws.isRunning || !graph.currentGraph || budgetLoading || !autoBudget}
               className="btn py-2 text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 flex items-center justify-center gap-1.5"
               title="Run Exact vs MCTS Comparison"
             >
@@ -558,6 +621,7 @@ const VisualizationPage: React.FC = () => {
           <MetricsPanel
             metrics={ws.metrics}
             algorithm={ws.activeAlgorithm || (strategy ? `MCTS (${strategy})` : 'SOLVER')}
+            autoBudget={autoBudget}
           />
         </div>
 

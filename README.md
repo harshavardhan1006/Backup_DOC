@@ -108,6 +108,3 @@ The frontend will be available at `http://localhost:5173`
 - **Backend:** Python, FastAPI, WebSockets
 - **Testing:** Pytest, Vitest
 
-## License
-
-Academic project — WVCP VisualLab

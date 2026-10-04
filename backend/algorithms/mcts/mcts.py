@@ -60,11 +60,12 @@ def solve_mcts(
     last_progress_time = start_time
     
     def send_throttled_event(event_type: EventType, message: str = "", **kwargs):
+        if not event_callback:
+            return
         nonlocal last_event_time
         current_time = time.time()
         if current_time - last_event_time >= event_throttle:
-            if event_callback:
-                event_callback(AlgorithmEvent(type=event_type, timestamp=time.time(), message=message, **kwargs))
+            event_callback(AlgorithmEvent(type=event_type, timestamp=current_time, message=message, **kwargs))
             last_event_time = current_time
 
     progress_step = max(1, iterations // 50)  # Every 2% or every 100ms
@@ -153,22 +154,23 @@ def solve_mcts(
                 ))
             
         # 7. Search Progress
-        current_time = time.time()
-        if (i % progress_step == 0 or current_time - last_progress_time >= 0.1):
-            if event_callback:
+        if event_callback:
+            current_time = time.time()
+            if (i % progress_step == 0 or current_time - last_progress_time >= 0.1):
+                elapsed_now = current_time - start_time
                 event_callback(AlgorithmEvent(
                     type=EventType.SEARCH_PROGRESS,
                     timestamp=current_time,
-                    message=f"Progress: iter {i}/{iterations} | Best: {result.best_score:.1f}",
-                    iteration=i,
+                    message=f"Iterations: {i + 1} / Elapsed: {elapsed_now:.1f}s | Best: {result.best_score:.1f}",
+                    iteration=i + 1,
                     best_score=result.best_score if result.best_score < float('inf') else None,
                     score=sim_score,
                     nodes_explored=result.nodes_explored,
                     nodes_pruned=result.nodes_pruned,
                     simulations=result.simulations,
-                    elapsed=current_time - start_time
+                    elapsed=elapsed_now
                 ))
-            last_progress_time = current_time
+                last_progress_time = current_time
                 
         result.iterations = i + 1
         

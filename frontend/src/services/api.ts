@@ -8,6 +8,8 @@ export const api = {
   listGraphs: () => fetch(`${API_BASE}/graphs/`).then(r => r.json()),
   getGraph: (id: string) => fetch(`${API_BASE}/graphs/${id}`).then(r => r.json()),
   getGraphStats: (id: string) => fetch(`${API_BASE}/graphs/${id}/stats`).then(r => r.json()),
+  getBudget: (id: string, strategy: string = 'dsatur') =>
+    fetch(`${API_BASE}/graphs/${id}/budget?strategy=${strategy}`).then(r => r.json()),
   getVisualization: (id: string) => fetch(`${API_BASE}/graphs/${id}/visualization`).then(r => r.json()),
   deleteGraph: (id: string) => fetch(`${API_BASE}/graphs/${id}`, { method: 'DELETE' }).then(r => r.json()),
   

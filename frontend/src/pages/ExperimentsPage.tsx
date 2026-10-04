@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Settings2, BarChart2, Download, Loader2, Zap, Clock, Award } from 'lucide-react';
+import { Play, Settings2, BarChart2, Download, Loader2, Clock, Award, Cpu } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { api } from '../services/api';
 import type { ExperimentResult } from '../types';
@@ -23,10 +23,8 @@ const AVAILABLE_ALGOS: AlgoSelection[] = [
 const ExperimentsPage: React.FC = () => {
   const [selectedSizes, setSelectedSizes] = useState<number[]>([5, 10, 15, 20]);
   const [selectedAlgos, setSelectedAlgos] = useState<string[]>(['exact', 'mcts_dsatur']);
-  const [timeLimit, setTimeLimit] = useState(10);
-  const [iterations, setIterations] = useState(500);
   const [edgeProbability, setEdgeProbability] = useState(0.3);
-  const [repetitions, setRepetitions] = useState(1);
+  const [repetitions] = useState(1);
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ExperimentResult[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -61,8 +59,6 @@ const ExperimentsPage: React.FC = () => {
       const response = await api.runScalability({
         graph_sizes: selectedSizes,
         algorithms: chosenAlgos,
-        time_limit: timeLimit,
-        iterations: iterations,
         edge_probability: edgeProbability,
         num_repetitions: repetitions,
         seed: 42,
@@ -192,28 +188,7 @@ const ExperimentsPage: React.FC = () => {
           </div>
 
           {/* Parameters */}
-          <div className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-gray-400 mb-1 text-xs">Time Limit (s)</label>
-                <input 
-                  type="number" 
-                  value={timeLimit} 
-                  onChange={e => setTimeLimit(Number(e.target.value))}
-                  className="input-dark w-full text-xs" 
-                />
-              </div>
-              <div>
-                <label className="block text-gray-400 mb-1 text-xs">MCTS Iterations</label>
-                <input 
-                  type="number" 
-                  value={iterations} 
-                  onChange={e => setIterations(Number(e.target.value))}
-                  className="input-dark w-full text-xs" 
-                />
-              </div>
-            </div>
-
+          <div className="space-y-4 pt-2">
             <div>
               <label className="flex justify-between text-gray-400 mb-1 text-xs">
                 <span>Edge Density</span>
@@ -228,6 +203,17 @@ const ExperimentsPage: React.FC = () => {
                 onChange={e => setEdgeProbability(Number(e.target.value))}
                 className="w-full accent-green-500" 
               />
+            </div>
+
+            {/* Auto Computation Informational Section */}
+            <div className="rounded-xl bg-black/40 border border-cyan-500/15 p-3.5 space-y-1.5 text-xs">
+              <div className="flex items-center gap-2 text-cyan-400 font-semibold uppercase tracking-wider text-[11px]">
+                <Cpu size={13} />
+                <span>Auto Computation Budget</span>
+              </div>
+              <p className="text-gray-400 leading-relaxed text-[11px]">
+                MCTS iterations and time limits are calibrated automatically per graph based on vertex/edge complexity and measured rollout throughput.
+              </p>
             </div>
           </div>
         </div>
@@ -344,6 +330,7 @@ const ExperimentsPage: React.FC = () => {
                 <tr>
                   <th className="px-5 py-3">Graph Size</th>
                   <th className="px-5 py-3">Algorithm</th>
+                  <th className="px-5 py-3">Iterations</th>
                   <th className="px-5 py-3">Score</th>
                   <th className="px-5 py-3">Colors</th>
                   <th className="px-5 py-3">Time (s)</th>
@@ -357,8 +344,11 @@ const ExperimentsPage: React.FC = () => {
                     <td className="px-5 py-3 font-mono text-xs text-white">{r.graph_size} Vertices</td>
                     <td className="px-5 py-3 text-xs">
                       <span className="font-semibold text-purple-300">{r.algorithm.toUpperCase()}</span>
-                      {r.simulation_strategy && <span className="text-gray-500 ml-1">({r.simulation_strategy})</span>}
+                      {r.simulation_strategy && r.simulation_strategy !== 'none' && (
+                        <span className="text-gray-500 ml-1">({r.simulation_strategy})</span>
+                      )}
                     </td>
+                    <td className="px-5 py-3 font-mono text-xs text-purple-300">{(r.iterations ?? 0).toLocaleString()}</td>
                     <td className="px-5 py-3 font-mono font-bold text-green-400">{r.score}</td>
                     <td className="px-5 py-3 font-mono text-xs">{r.num_colors}</td>
                     <td className="px-5 py-3 font-mono text-xs text-cyan-300">{r.runtime.toFixed(4)}s</td>
@@ -374,7 +364,7 @@ const ExperimentsPage: React.FC = () => {
                 ))}
                 {results.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500 italic">
+                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500 italic">
                       No experiment data yet. Configure your matrix and click "RUN EXPERIMENTS".
                     </td>
                   </tr>
